@@ -5,4 +5,4 @@ set -e
 cd "$(dirname "$0")"
 rm -rf dist && mkdir dist
 cp web/* dist/
-cp site/* dist/
+cp -R site/. dist/

@@ -7,7 +7,7 @@ set -e
 cd "$(dirname "$0")"
 rm -rf dist && mkdir dist
 cp web/* dist/
-cp site/* dist/
+cp -R site/. dist/
 rm -f sober-living-site.zip
 (cd dist && zip -qr ../sober-living-site.zip .)
 rm -rf dist

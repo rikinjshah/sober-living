@@ -1,16 +1,30 @@
-/* Public site and portal. Loaded after web/style.css and reuses its tokens. */
+@import url("https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;1,400&family=Manrope:wght@400;500;600&display=swap");
+/* Public site and portal. Loaded after web/style.css and reuses its tokens.
+   Noir & Gold theme: overrides the shared tokens so every page in site/ goes dark. */
+:root, :root:not([data-theme]) {
+  --bg: #0E0D0B; --card: #14120F; --ink: #EDE6DA; --muted: #B9AF9F; --line: #2A2620;
+  --accent: #C9A96A; --accent-ink: #0E0D0B; --gold: #C9A96A; --gold-hi: #E2C88F;
+  --warn: #E6B56F; --warn-bg: #2B2418; --err: #EF8C7A; --radius: 2px;
+  --serif: "Cormorant Garamond", Georgia, serif; --sans: Manrope, -apple-system, "Segoe UI", sans-serif;
+  color-scheme: dark;
+}
+body { font-family: var(--sans); }
+h1, .brand { font-family: var(--serif); font-weight: 400; }
+a { color: var(--gold); } a:hover { color: var(--gold-hi); }
 
 .nav { position: sticky; top: 0; z-index: 10; background: color-mix(in srgb, var(--bg) 92%, transparent);
   backdrop-filter: blur(8px); border-bottom: 1px solid var(--line); }
 .nav .in { max-width: 1120px; margin: 0 auto; padding: 12px 16px; display: flex; align-items: center; gap: 20px; }
-.brand { font-family: Georgia, "Times New Roman", serif; font-size: 20px; color: var(--ink); text-decoration: none; margin-right: auto; }
+.brand { font-family: var(--serif); font-size: 22px; letter-spacing: .18em; text-transform: uppercase; color: var(--ink); text-decoration: none; margin-right: auto; }
 .nav a.link { color: var(--muted); text-decoration: none; font-size: 15px; }
 .nav a.link:hover { color: var(--ink); }
 @media (max-width: 760px) { .nav a.link.opt { display: none; } }
-a.btn { display: inline-block; font-weight: 600; padding: 11px 18px; border-radius: 8px; background: var(--accent);
+a.btn { display: inline-block; font-weight: 600; padding: 13px 24px; border-radius: 0; font-size: 13px; letter-spacing: .16em; text-transform: uppercase; background: var(--accent);
   color: var(--accent-ink); text-decoration: none; }
-a.btn.ghost { background: transparent; color: var(--ink); border: 1px solid var(--line); }
-a.btn.sm { padding: 7px 14px; font-size: 14px; }
+a.btn.ghost { background: transparent; color: var(--ink); border: 1px solid #4A443A; }
+a.btn:hover { background: var(--gold-hi); color: var(--accent-ink); } a.btn.ghost:hover { background: transparent; border-color: var(--gold); color: var(--ink); }
+a.btn.sm { padding: 10px 18px; font-size: 12px; }
+.nav a.link { text-transform: uppercase; letter-spacing: .14em; font-size: 13px !important; }
 
 .page { max-width: 1120px; margin: 0 auto; padding: 0 16px; }
 .hero { padding: 88px 0 72px; max-width: 760px; }
@@ -20,7 +34,7 @@ a.btn.sm { padding: 7px 14px; font-size: 14px; }
 .eyebrow { text-transform: uppercase; letter-spacing: .08em; font-size: 12px; font-weight: 600; color: var(--accent); margin-bottom: 10px; }
 
 section.band { padding: 64px 0; border-top: 1px solid var(--line); }
-section.band h2 { font-family: Georgia, "Times New Roman", serif; font-weight: 500; font-size: 30px; margin: 0 0 12px; }
+section.band h2 { font-family: var(--serif); font-weight: 500; font-size: 30px; margin: 0 0 12px; }
 section.band > .page > p.sub { color: var(--muted); max-width: 640px; margin: 0 0 32px; font-size: 17px; }
 .cols { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; }
 .cols.two { grid-template-columns: 1fr 1fr; }
@@ -59,3 +73,56 @@ footer.site a { color: var(--muted); }
 .chart line { stroke: var(--line); }
 .scroll { overflow-x: auto; }
 .stats .stat small { color: var(--muted); font-size: 12px; }
+
+/* Noir & Gold marketing pages (index, about) */
+.lux .kicker { font-size: 12px; letter-spacing: .3em; text-transform: uppercase; color: var(--gold); margin-bottom: 20px; }
+.lux h1, .lux h2, .lux h3 { font-family: var(--serif); font-weight: 400; }
+.lux h2 { font-size: clamp(38px, 5vw, 56px); line-height: 1.05; margin: 0 0 24px; }
+.lux em { font-style: italic; color: var(--gold); }
+.lux p.body { color: var(--muted); font-size: 17px; margin: 0 0 18px; }
+.lux .hero { position: relative; min-height: min(86vh, 780px); max-width: none; padding: 0; display: flex; align-items: flex-end;
+  background: #1A1814 var(--hero-img, none) center / cover no-repeat; border-bottom: 1px solid var(--line); }
+.lux .hero::before { content: ""; position: absolute; inset: 0; background: linear-gradient(to top, rgb(14 13 11 / .92), rgb(14 13 11 / .25)); }
+.lux .hero .page { position: relative; width: 100%; padding-bottom: 96px; }
+.lux .hero h1 { font-size: clamp(46px, 7.5vw, 104px); line-height: 1; margin: 0 0 32px; max-width: 980px; }
+.lux .hero p { font-size: 19px; color: var(--muted); max-width: 560px; margin: 0 0 40px; }
+.lux .ctas { display: flex; gap: 16px; flex-wrap: wrap; }
+.lux .sec { padding: 120px 0; }
+.lux .sec.alt { background: var(--card); border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); }
+.lux .pair { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 64px; align-items: center; }
+.lux .photo { aspect-ratio: 4 / 5; background: #1F1C17 center / cover no-repeat; border: 1px solid #3A342B; }
+.lux .grid6 { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 1px; background: var(--line); border: 1px solid var(--line); }
+.lux .grid6 > div { background: var(--card); padding: 44px 36px; }
+.lux .grid6 .num { font-family: var(--serif); font-size: 40px; color: var(--gold); margin-bottom: 12px; line-height: 1; }
+.lux .grid6 h3 { font-size: 26px; font-weight: 500; margin: 0 0 10px; }
+.lux .grid6 p { margin: 0; color: #9C9384; font-size: 15px; }
+.lux .center { text-align: center; max-width: 880px; margin: 0 auto; }
+.lux .panel { background: #1A1814; border: 1px solid #3A342B; padding: 36px; }
+.lux .panel .stats3 { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; margin-bottom: 24px; }
+.lux .panel .stats3 > div { border-top: 1px solid var(--gold); padding-top: 14px; }
+.lux .panel .stats3 small { display: block; font-size: 12px; color: #9C9384; }
+.lux .panel .stats3 b { font-family: var(--serif); font-weight: 400; font-size: 30px; }
+.lux .textlink { color: var(--gold); text-decoration: none; font-size: 13px; letter-spacing: .16em; text-transform: uppercase; border-bottom: 1px solid var(--gold); padding-bottom: 6px; }
+.lux details summary { font-family: var(--serif); font-size: 22px; font-weight: 500; }
+.lux .team { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 40px; }
+.lux .person { border: 1px solid var(--line); background: var(--card); }
+.lux .person .photo { aspect-ratio: 4 / 3; border: 0; border-bottom: 1px solid var(--line); }
+.lux .person .txt { padding: 44px 40px; }
+.lux .person .role { font-size: 12px; letter-spacing: .24em; text-transform: uppercase; color: var(--gold); margin-bottom: 10px; }
+.lux .person h2 { font-size: 44px; margin: 0 0 20px; }
+.lux .vals { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 48px; }
+.lux .vals h3 { font-size: 28px; font-weight: 500; color: var(--gold); margin: 0 0 10px; }
+.lux .vals p { margin: 0; color: #9C9384; }
+footer.site .brand-sm { font-family: var(--serif); font-size: 20px; letter-spacing: .18em; text-transform: uppercase; color: var(--ink); }
+@media (max-width: 900px) { .lux .grid6 { grid-template-columns: 1fr 1fr; } }
+@media (max-width: 640px) { .lux .grid6 { grid-template-columns: 1fr; } .lux .sec { padding: 80px 0; } .lux .hero .page { padding-bottom: 64px; } .lux .grid6 > div, .lux .person .txt { padding: 32px 24px; } }
+.lux .strip { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 24px; }
+.lux .strip figure { margin: 0; }
+.lux .strip .photo { aspect-ratio: 4 / 5; }
+.lux .strip figcaption { font-family: var(--serif); font-size: 22px; margin-top: 14px; }
+.lux .photo.portrait { display: flex; align-items: center; justify-content: center; background: #1F1C17; }
+.lux .photo.portrait span { font-family: var(--serif); font-size: 56px; color: #3A342B; letter-spacing: .08em; }
+.lux .chart .bar { fill: var(--gold); opacity: .9; } .lux .chart .bar.low { fill: #7A6A4A; }
+.lux details { border-color: var(--line); } .lux details p { color: var(--muted); }
+.nav a { white-space: nowrap; }
+@media (max-width: 560px) { .brand { font-size: 17px; letter-spacing: .12em; } .nav .in { gap: 14px; } .lux .hero .kicker { letter-spacing: .18em; } }
