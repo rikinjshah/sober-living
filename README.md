@@ -85,3 +85,7 @@ deno test tests/                 # validation, screening, Stripe params, signatu
 - Cancelling autopay from the console on move-out (do it in Stripe for now).
 - Add-on purchases (massage, training) and the resident app.
 - A privacy lawyer's review before real resident data goes in.
+
+## Deploys
+
+The site deploys automatically: every push to `main` triggers a Cloudflare Workers build on the `sober-living` worker, which runs `build_dist.sh` and publishes `dist/` (see `wrangler.jsonc`). Live at https://soberlivingbayarea.com. `build_site.sh` and the zip are no longer needed.
