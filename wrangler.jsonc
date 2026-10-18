@@ -1,0 +1,7 @@
+{
+  // Static site served by the existing "sober-living" worker. Every push to main deploys.
+  "name": "sober-living",
+  "compatibility_date": "2026-10-01",
+  "build": { "command": "sh build_dist.sh" },
+  "assets": { "directory": "./dist", "html_handling": "auto-trailing-slash" }
+}

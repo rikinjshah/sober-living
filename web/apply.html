@@ -1,0 +1,180 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Inquire about a place</title>
+<link rel="stylesheet" href="style.css">
+<script src="config.js"></script>
+</head>
+<body>
+<div class="wrap">
+  <h1 id="title">Inquire about a place</h1>
+  <p class="lead">A short form, about five minutes. We read every inquiry personally and reply within one business day. Nothing here commits you to anything.</p>
+
+  <form id="form" novalidate>
+    <input class="hp" type="text" name="website" tabindex="-1" autocomplete="off" aria-hidden="true">
+
+    <div class="card">
+      <h2>Who is filling this in?</h2>
+      <div class="choices" role="radiogroup">
+        <label><input type="radio" name="submitted_by" value="self" checked> I'm looking for myself</label>
+        <label><input type="radio" name="submitted_by" value="family"> For a family member or friend</label>
+        <label><input type="radio" name="submitted_by" value="professional"> I'm a clinician or professional</label>
+      </div>
+      <div class="err" data-err="submitted_by"></div>
+
+      <div class="row">
+        <div><label for="contact_name">Your name</label><input id="contact_name" name="contact_name" autocomplete="name" required><div class="err" data-err="contact_name"></div></div>
+        <div><label for="contact_email">Your email</label><input id="contact_email" name="contact_email" type="email" autocomplete="email" required><div class="err" data-err="contact_email"></div></div>
+      </div>
+      <div class="row">
+        <div><label for="contact_phone">Phone <span class="hint">(optional)</span></label><input id="contact_phone" name="contact_phone" type="tel" autocomplete="tel"></div>
+        <div data-show="family"><label for="contact_relationship">Relationship to them</label><input id="contact_relationship" name="contact_relationship" placeholder="Parent, spouse, sibling..."></div>
+        <div data-show="professional"><label for="contact_organization">Program or practice</label><input id="contact_organization" name="contact_organization"></div>
+      </div>
+    </div>
+
+    <div class="card" data-show="family professional">
+      <h2>About the person who would live here</h2>
+      <div class="row">
+        <div><label for="applicant_name">Their name</label><input id="applicant_name" name="applicant_name"><div class="err" data-err="applicant_name"></div></div>
+        <div><label for="applicant_age">Age</label><input id="applicant_age" name="applicant_age" type="number" min="0" max="120"><div class="err" data-err="applicant_age"></div></div>
+      </div>
+      <div class="row">
+        <div><label for="applicant_email">Their email <span class="hint">(optional)</span></label><input id="applicant_email" name="applicant_email" type="email"><div class="err" data-err="applicant_email"></div></div>
+        <div><label for="applicant_phone">Their phone <span class="hint">(optional)</span></label><input id="applicant_phone" name="applicant_phone" type="tel"></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>Where things stand</h2>
+      <div data-show="self"><label for="applicant_age_self">Your age</label><input id="applicant_age_self" type="number" min="0" max="120"></div>
+
+      <label for="current_setting">Current situation</label>
+      <select id="current_setting" name="current_setting">
+        <option value="">Choose one</option>
+        <option value="residential_treatment">In residential treatment</option>
+        <option value="detox">In detox</option>
+        <option value="iop_php">In an outpatient program (IOP or PHP)</option>
+        <option value="home">At home</option>
+        <option value="other_sober_living">In another sober living home</option>
+        <option value="other">Something else</option>
+      </select>
+
+      <div class="row">
+        <div><label for="treatment_program">Program name <span class="hint">(if any)</span></label><input id="treatment_program" name="treatment_program"></div>
+        <div><label for="expected_discharge">Expected discharge <span class="hint">(if any)</span></label><input id="expected_discharge" name="expected_discharge" type="date"></div>
+      </div>
+      <div class="row">
+        <div><label for="sobriety_date">Sobriety date <span class="hint">(approximate is fine)</span></label><input id="sobriety_date" name="sobriety_date" type="date"><div class="err" data-err="sobriety_date"></div></div>
+        <div><label for="desired_move_in">Ideal move-in date</label><input id="desired_move_in" name="desired_move_in" type="date"></div>
+      </div>
+      <label class="check"><input type="checkbox" name="needs_medical_detox" value="true"> Medical detox may be needed before moving in</label>
+
+      <label>Room preference</label>
+      <div class="choices">
+        <label><input type="radio" name="preferred_room" value="private"> Private room</label>
+        <label><input type="radio" name="preferred_room" value="shared"> Shared room</label>
+        <label><input type="radio" name="preferred_room" value="" checked> Not sure yet</label>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>Anything else</h2>
+      <label for="heard_about_us">How did you hear about us?</label>
+      <select id="heard_about_us" name="heard_about_us">
+        <option value="">Choose one</option>
+        <option value="treatment_program">A treatment program</option>
+        <option value="clinician">A therapist, psychiatrist or doctor</option>
+        <option value="attorney">An attorney</option>
+        <option value="monitoring_program">A professional monitoring program</option>
+        <option value="alumni">A current or former resident</option>
+        <option value="family_friend">Family or a friend</option>
+        <option value="search">Search or online</option>
+        <option value="other">Other</option>
+      </select>
+      <label for="heard_about_us_detail">Who referred you? <span class="hint">(optional)</span></label>
+      <input id="heard_about_us_detail" name="heard_about_us_detail">
+
+      <label for="message">What would you like us to know? <span class="hint">(optional)</span></label>
+      <textarea id="message" name="message" placeholder="Goals, questions, timing, anything that matters to you."></textarea>
+      <p class="small">Please don't include medical records or diagnoses here. We'll talk through anything relevant on the call.</p>
+    </div>
+
+    <div class="card">
+      <label class="check"><input type="checkbox" name="consent_contact" value="true"> You may contact me by email, phone or text about this inquiry.</label>
+      <div class="err" data-err="consent_contact"></div>
+      <label class="check"><input type="checkbox" name="consent_privacy" value="true"> I understand this information is kept confidential, used only to assess fit and arrange a place, and never shared without written consent.</label>
+      <div class="err" data-err="consent_privacy"></div>
+      <p class="small">We are a recovery residence, not a treatment provider. If someone is in danger right now, call 911 or 988.</p>
+      <button type="submit" id="submit">Send inquiry</button>
+      <div class="err" id="form-error"></div>
+    </div>
+  </form>
+
+  <div id="done" class="card hidden">
+    <h2>Thank you. We've got it.</h2>
+    <p>We'll be in touch within one business day to set up a short call. A confirmation is on its way to your inbox.</p>
+  </div>
+</div>
+
+<script>
+const cfg = window.APP_CONFIG;
+document.getElementById("title").textContent = `Inquire about ${cfg.HOUSE_NAME}`;
+document.title = `Inquire about ${cfg.HOUSE_NAME}`;
+
+const form = document.getElementById("form");
+function applyWho() {
+  const who = form.submitted_by.value;
+  document.querySelectorAll("[data-show]").forEach(el => {
+    el.classList.toggle("hidden", !el.dataset.show.split(" ").includes(who));
+  });
+}
+form.addEventListener("change", e => { if (e.target.name === "submitted_by") applyWho(); });
+applyWho();
+
+form.addEventListener("submit", async e => {
+  e.preventDefault();
+  document.querySelectorAll("[data-err]").forEach(el => el.textContent = "");
+  document.getElementById("form-error").textContent = "";
+  const fd = new FormData(form);
+  const body = Object.fromEntries(fd.entries());
+  body.consent_contact = fd.has("consent_contact");
+  body.consent_privacy = fd.has("consent_privacy");
+  body.needs_medical_detox = fd.has("needs_medical_detox");
+  if (body.submitted_by === "self") body.applicant_age = document.getElementById("applicant_age_self").value;
+
+  const btn = document.getElementById("submit");
+  btn.disabled = true; btn.textContent = "Sending...";
+  try {
+    const res = await fetch(`${cfg.SUPABASE_URL}/functions/v1/intake`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", apikey: cfg.SUPABASE_ANON_KEY },
+      body: JSON.stringify(body),
+    });
+    const out = await res.json();
+    if (res.ok && out.ok) {
+      form.classList.add("hidden");
+      document.getElementById("done").classList.remove("hidden");
+      window.scrollTo(0, 0);
+      return;
+    }
+    if (out.errors) {
+      for (const [k, v] of Object.entries(out.errors)) {
+        const el = document.querySelector(`[data-err="${k}"]`);
+        if (el) el.textContent = v;
+      }
+      document.getElementById("form-error").textContent = "Please check the highlighted fields.";
+    } else {
+      document.getElementById("form-error").textContent = out.error || "Something went wrong. Please try again.";
+    }
+  } catch {
+    document.getElementById("form-error").textContent = "Couldn't reach us. Check your connection and try again.";
+  } finally {
+    btn.disabled = false; btn.textContent = "Send inquiry";
+  }
+});
+</script>
+</body>
+</html>

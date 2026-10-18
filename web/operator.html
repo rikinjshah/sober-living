@@ -1,0 +1,225 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Operator console</title>
+<link rel="stylesheet" href="style.css">
+<script src="config.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+</head>
+<body>
+<div class="wrap wide">
+  <div class="toolbar" style="justify-content:space-between;margin-bottom:16px">
+    <h1 style="margin:0">Operator console</h1>
+    <div class="toolbar"><a href="/residents" class="small">Residents</a><span class="small" id="who"></span><button class="ghost hidden" id="signout">Sign out</button></div>
+  </div>
+
+  <div id="login" class="card hidden" style="max-width:420px">
+    <h2>Sign in</h2>
+    <p class="small">We'll email you a sign-in link. Only people on the operator list can see anything; anyone else signs in to an empty console.</p>
+    <label for="email">Email</label><input id="email" type="email">
+    <p><button id="send-link">Email me a link</button></p>
+    <div class="small" id="login-msg"></div>
+  </div>
+
+  <div id="app" class="hidden">
+    <div class="stats" id="stats"></div>
+    <div class="grid2">
+      <div class="card">
+        <div class="toolbar" style="justify-content:space-between">
+          <h2>Inquiries</h2>
+          <select id="filter" style="width:auto">
+            <option value="open">Open</option>
+            <option value="admitted">Admitted</option>
+            <option value="waitlist">Waitlist</option>
+            <option value="closed">Closed</option>
+            <option value="all">All</option>
+          </select>
+        </div>
+        <table><thead><tr><th>Received</th><th>Applicant</th><th>Status</th><th>Flags</th></tr></thead>
+        <tbody id="rows"></tbody></table>
+      </div>
+      <div class="card" id="detail"><p class="small">Select an inquiry.</p></div>
+    </div>
+  </div>
+</div>
+
+<script>
+const cfg = window.APP_CONFIG;
+const sb = supabase.createClient(cfg.SUPABASE_URL, cfg.SUPABASE_ANON_KEY);
+const $ = id => document.getElementById(id);
+const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const money = c => c == null ? "" : `$${(c / 100).toLocaleString(undefined, { maximumFractionDigits: 0 })}`;
+const day = d => d ? new Date(d).toLocaleDateString() : "";
+const FLAGS = {
+  under_18: "Under 18", needs_detox_first: "Needs detox first", currently_in_detox: "In detox",
+  sobriety_under_14_days: "<14 days sober", no_sobriety_date: "No sobriety date",
+  discharge_date_unknown: "Discharge unknown", urgent_move_in: "Urgent", no_direct_applicant_contact: "No applicant contact",
+  professional_referral: "Pro referral",
+};
+const OPEN = ["new", "reviewing", "approved", "payment_sent"];
+const CLOSED = ["declined", "withdrawn", "moved_out"];
+let inquiries = [], beds = [], selected = null;
+
+async function boot() {
+  const { data: { session } } = await sb.auth.getSession();
+  if (!session) { $("login").classList.remove("hidden"); return; }
+  $("who").textContent = session.user.email;
+  $("signout").classList.remove("hidden");
+  const { data: ok } = await sb.rpc("is_operator");
+  if (!ok) { $("detail").innerHTML = ""; $("app").classList.remove("hidden"); $("app").innerHTML = `<div class="card">This account isn't on the operator list.</div>`; return; }
+  $("app").classList.remove("hidden");
+  await load();
+  const hash = location.hash.slice(1);
+  if (hash) show(hash);
+}
+
+async function load() {
+  const [{ data: inq }, { data: b }, { data: occ }] = await Promise.all([
+    sb.from("inquiries").select("*").order("created_at", { ascending: false }),
+    sb.from("beds").select("*").eq("active", true).order("label"),
+    sb.from("house_occupancy").select("*"),
+  ]);
+  inquiries = inq || []; beds = b || [];
+  const o = (occ || [])[0] || {};
+  const newCount = inquiries.filter(i => i.status === "new").length;
+  const weekly = inquiries.filter(i => i.status === "admitted").reduce((s, i) => s + (i.daily_rate_cents || 0) * 7, 0);
+  $("stats").innerHTML = [
+    ["New", newCount], ["Admitted", `${o.admitted ?? 0} / ${beds.length} beds`], ["Pending payment", o.pending ?? 0],
+    ["Waitlist", o.waitlist ?? 0], ["Weekly rent roll", money(weekly)],
+  ].map(([k, v]) => `<div class="stat"><span class="small">${k}</span><b>${v}</b></div>`).join("");
+  renderRows();
+}
+
+function renderRows() {
+  const f = $("filter").value;
+  const rows = inquiries.filter(i => f === "all" || (f === "open" ? OPEN.includes(i.status) : f === "closed" ? CLOSED.includes(i.status) : i.status === f));
+  $("rows").innerHTML = rows.map(i => `
+    <tr class="clickable" data-id="${i.id}">
+      <td>${day(i.created_at)}</td>
+      <td><b>${esc(i.applicant_name)}</b><br><span class="small">${esc(i.submitted_by)}${i.contact_organization ? " · " + esc(i.contact_organization) : ""}</span></td>
+      <td><span class="pill">${i.status.replace("_", " ")}</span></td>
+      <td>${i.screening_flags.map(f => `<span class="flag">${FLAGS[f] || f}</span>`).join("")}</td>
+    </tr>`).join("") || `<tr><td colspan="4" class="small">Nothing here.</td></tr>`;
+  $("rows").querySelectorAll("tr[data-id]").forEach(tr => tr.onclick = () => show(tr.dataset.id));
+}
+
+async function show(id) {
+  selected = inquiries.find(i => i.id === id);
+  if (!selected) return;
+  location.hash = id;
+  const i = selected;
+  const [{ data: events }, { data: pays }] = await Promise.all([
+    sb.from("inquiry_events").select("*").eq("inquiry_id", id).order("at"),
+    sb.from("payments").select("*").eq("inquiry_id", id).order("occurred_at", { ascending: false }),
+  ]);
+  const takenBeds = new Set(inquiries.filter(x => x.id !== id && ["approved", "payment_sent", "admitted"].includes(x.status)).map(x => x.bed_id));
+  const freeBeds = beds.filter(b => !takenBeds.has(b.id));
+  const canAdmit = ["new", "reviewing", "approved", "payment_sent", "waitlist"].includes(i.status);
+  const row = (k, v) => v ? `<dt>${k}</dt><dd>${v}</dd>` : "";
+  $("detail").innerHTML = `
+    <h2>${esc(i.applicant_name)} <span class="pill">${i.status.replace("_", " ")}</span></h2>
+    <div>${i.screening_flags.map(f => `<span class="flag">${FLAGS[f] || f}</span>`).join("")}</div>
+    <dl style="margin-top:12px">
+      ${row("Submitted by", `${esc(i.contact_name)} (${esc(i.submitted_by)}${i.contact_relationship ? ", " + esc(i.contact_relationship) : ""})`)}
+      ${row("Contact", `<a href="mailto:${esc(i.contact_email)}">${esc(i.contact_email)}</a> ${esc(i.contact_phone)}`)}
+      ${row("Organization", esc(i.contact_organization))}
+      ${row("Applicant contact", `${esc(i.applicant_email)} ${esc(i.applicant_phone)}`.trim())}
+      ${row("Age", i.applicant_age)}
+      ${row("Situation", esc((i.current_setting || "").replaceAll("_", " ")))}
+      ${row("Program", esc(i.treatment_program))}
+      ${row("Discharge", i.expected_discharge)}
+      ${row("Sobriety date", i.sobriety_date)}
+      ${row("Move-in wanted", i.desired_move_in)}
+      ${row("Room wanted", i.preferred_room)}
+      ${row("Heard via", esc([i.heard_about_us, i.heard_about_us_detail].filter(Boolean).join(": ")))}
+      ${row("Message", esc(i.message))}
+      ${row("Bed / rate", i.bed_id ? `${esc(beds.find(b => b.id === i.bed_id)?.label)} at ${money(i.daily_rate_cents)}/day` : "")}
+      ${row("Payment link", i.stripe_checkout_url ? `<a href="${esc(i.stripe_checkout_url)}" target="_blank">open</a>` : "")}
+    </dl>
+
+    <label for="notes">Operator notes</label>
+    <textarea id="notes">${esc(i.operator_notes)}</textarea>
+    <div class="toolbar" style="margin-top:8px">
+      <button class="ghost" id="save-notes">Save notes</button>
+      ${i.status === "new" ? `<button class="ghost" data-status="reviewing">Mark reviewing</button>` : ""}
+      ${OPEN.includes(i.status) || i.status === "new" ? `<button class="ghost" data-status="waitlist">Waitlist</button><button class="ghost" data-status="declined">Decline</button><button class="ghost" data-status="withdrawn">Withdrawn</button>` : ""}
+      ${i.status === "admitted" ? `<button class="ghost" data-status="moved_out">Mark moved out</button>` : ""}
+    </div>
+
+    ${canAdmit ? `
+    <h2 style="margin-top:24px">Offer a bed</h2>
+    <div class="row">
+      <div><label for="bed">Bed</label><select id="bed">${freeBeds.map(b => `<option value="${b.id}" data-rate="${b.daily_rate_cents}" ${b.id === i.bed_id ? "selected" : ""}>${esc(b.label)} (${b.room_type}, ${money(b.daily_rate_cents)}/day)</option>`).join("")}</select></div>
+      <div><label for="rate">Daily rate ($)</label><input id="rate" type="number" min="1" step="1"></div>
+    </div>
+    <div class="row">
+      <div><label for="fee">Intake fee ($)</label><input id="fee" type="number" min="0" step="1" value="500"></div>
+      <div><label for="movein">Move-in date</label><input id="movein" type="date" value="${i.move_in_date || i.desired_move_in || ""}"></div>
+    </div>
+    <p><button id="admit" ${freeBeds.length ? "" : "disabled"}>${i.stripe_checkout_url ? "Resend payment link" : "Approve and send payment link"}</button></p>
+    <div class="small" id="admit-msg">${freeBeds.length ? "Creates a Stripe checkout for the intake fee plus weekly rent on autopay, and emails it." : "No free beds. Waitlist instead."}</div>` : ""}
+
+    ${pays?.length ? `<h2 style="margin-top:24px">Payments</h2><table>${pays.map(p => `<tr><td>${day(p.occurred_at)}</td><td>${p.kind.replace("_", " ")}</td><td>${money(p.amount_cents)}</td><td>${p.status}</td></tr>`).join("")}</table>` : ""}
+
+    <h2 style="margin-top:24px">Timeline</h2>
+    <ul class="timeline">${(events || []).map(e => `<li>${new Date(e.at).toLocaleString()}: ${esc(e.kind.replaceAll("_", " "))}${e.detail?.to ? ` → ${esc(e.detail.to)}` : ""} <span class="small">(${esc(e.actor)})</span></li>`).join("")}</ul>
+  `;
+
+  const bedSel = $("bed");
+  if (bedSel) {
+    const syncRate = () => { const r = bedSel.selectedOptions[0]?.dataset.rate; if (r) $("rate").value = (i.daily_rate_cents && bedSel.value === i.bed_id ? i.daily_rate_cents : Number(r)) / 100; };
+    bedSel.onchange = syncRate; syncRate();
+    $("admit").onclick = admit;
+  }
+  $("save-notes").onclick = async () => {
+    await sb.from("inquiries").update({ operator_notes: $("notes").value }).eq("id", i.id);
+    await refresh(i.id);
+  };
+  $("detail").querySelectorAll("[data-status]").forEach(b => b.onclick = async () => {
+    const to = b.dataset.status;
+    if (to === "moved_out" && !confirm("Cancel their autopay in Stripe too. Mark as moved out?")) return;
+    const patch = { status: to };
+    if (["declined", "withdrawn", "moved_out", "waitlist"].includes(to)) patch.bed_id = null;
+    const { error } = await sb.from("inquiries").update(patch).eq("id", i.id);
+    if (error) alert(error.message);
+    await refresh(i.id);
+  });
+}
+
+async function admit() {
+  const btn = $("admit");
+  btn.disabled = true; $("admit-msg").textContent = "Creating payment link...";
+  const { data: { session } } = await sb.auth.getSession();
+  const res = await fetch(`${cfg.SUPABASE_URL}/functions/v1/admit`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", apikey: cfg.SUPABASE_ANON_KEY, Authorization: `Bearer ${session.access_token}` },
+    body: JSON.stringify({
+      inquiry_id: selected.id,
+      bed_id: $("bed").value,
+      daily_rate_cents: Math.round(Number($("rate").value) * 100),
+      intake_fee_cents: Math.round(Number($("fee").value) * 100),
+      move_in_date: $("movein").value || null,
+    }),
+  });
+  const out = await res.json();
+  if (!res.ok) { $("admit-msg").textContent = out.error || "Failed"; btn.disabled = false; return; }
+  await refresh(selected.id);
+  $("admit-msg").innerHTML = `Sent. <a href="${esc(out.checkout_url)}" target="_blank">Payment link</a>`;
+}
+
+async function refresh(id) { await load(); await show(id); }
+
+$("filter").onchange = renderRows;
+$("send-link").onclick = async () => {
+  const { error } = await sb.auth.signInWithOtp({ email: $("email").value, options: { emailRedirectTo: location.href.split("#")[0], shouldCreateUser: true } });
+  $("login-msg").textContent = error ? error.message : "Check your inbox for the sign-in link.";
+};
+$("signout").onclick = async () => { await sb.auth.signOut(); location.reload(); };
+// Reload only when signing in from the login form; supabase-js also fires SIGNED_IN for a restored session on page load, which looped.
+sb.auth.onAuthStateChange((ev) => { if (ev === "SIGNED_IN" && !$("login").classList.contains("hidden")) location.reload(); });
+boot();
+</script>
+</body>
+</html>

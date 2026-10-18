@@ -1,0 +1,218 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Resident portal</title>
+<link rel="stylesheet" href="style.css">
+<link rel="stylesheet" href="site.css">
+<script src="config.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+</head>
+<body>
+<nav class="nav"><div class="in">
+  <a class="brand" href="/" data-house>Petaluma House</a>
+  <select id="person" class="hidden" style="width:auto"></select>
+  <a class="link" href="/login">Switch</a>
+  <button class="ghost" id="signout" style="padding:7px 14px">Sign out</button>
+</div></nav>
+
+<div class="wrap wide">
+  <div id="flash"></div>
+  <h1 id="title">Loading…</h1>
+  <p class="small" id="subtitle"></p>
+  <div class="tabs" id="tabs"></div>
+
+  <div id="tab-overview" class="tab hidden"></div>
+  <div id="tab-tests" class="tab hidden"></div>
+  <div id="tab-sleep" class="tab hidden"></div>
+  <div id="tab-payments" class="tab hidden"></div>
+  <div id="tab-sharing" class="tab hidden"></div>
+</div>
+
+<script src="app.js"></script>
+<script>
+document.querySelectorAll("[data-house]").forEach((el) => { if (cfg.HOUSE_NAME) el.textContent = cfg.HOUSE_NAME; });
+wireSignOut();
+let D = null, days = 30;
+const params = new URLSearchParams(location.search);
+
+const OURA_MSG = {
+  connected: ["ok", "Your Oura ring is connected. Data from the last 30 days is in, and new nights sync automatically."],
+  cancelled: ["", "Oura connection was cancelled."],
+  expired: ["", "That Oura link expired. Please try connecting again."],
+  error: ["", "Oura couldn't be connected. Please try again, or ask the house for help."],
+};
+if (params.get("oura") && OURA_MSG[params.get("oura")]) {
+  const [k, m] = OURA_MSG[params.get("oura")];
+  $("flash").innerHTML = `<div class="notice ${k}">${m}</div>`;
+}
+
+async function init() {
+  if (!await requireSession()) return;
+  const { data: me } = await sb.rpc("portal_me");
+  let rid = params.get("r");
+  const people = me?.people ?? [];
+  if (!rid && people.length) rid = people[0].id;
+  if (!rid) { location.replace("/login"); return; }
+  if (people.length > 1) {
+    $("person").innerHTML = people.map((p) => `<option value="${p.id}" ${p.id === rid ? "selected" : ""}>${esc(p.role === "self" ? "Me" : p.name)}</option>`).join("");
+    $("person").classList.remove("hidden");
+    $("person").onchange = () => { location.search = "?r=" + $("person").value; };
+  }
+  await load(rid);
+}
+
+async function load(rid) {
+  const { data, error } = await sb.rpc("portal_data", { p_resident: rid, p_days: days });
+  if (error) { $("title").textContent = "You don't have access to this page"; $("subtitle").textContent = "If you think that's wrong, ask the resident to check what they've shared with you."; return; }
+  D = data;
+  const self = D.role === "self";
+  $("title").textContent = self ? `Hi, ${D.resident.name.split(" ")[0]}` : D.resident.name;
+  $("subtitle").textContent = [D.resident.house, D.resident.move_in_date && "since " + fmtDate(D.resident.move_in_date),
+    D.role === "family" && "shared with you by " + D.resident.name, D.role === "operator" && "staff view"].filter(Boolean).join(" · ");
+  const tabs = [["overview", "Overview"]];
+  if (D.can.tests) tabs.push(["tests", "Test results"]);
+  if (D.can.health) tabs.push(["sleep", "Sleep and health"]);
+  if (D.can.payments) tabs.push(["payments", "Payments"]);
+  if (D.family_access) tabs.push(["sharing", self ? "Sharing" : "Family access"]);
+  $("tabs").innerHTML = tabs.map(([k, l]) => `<button data-tab="${k}">${l}</button>`).join("");
+  $("tabs").querySelectorAll("button").forEach((b) => b.onclick = () => show(b.dataset.tab));
+  renderOverview(); if (D.can.tests) renderTests(); if (D.can.health) renderSleep(); if (D.can.payments) renderPayments(); if (D.family_access) renderSharing();
+  show(location.hash.slice(1) || "overview");
+}
+
+function show(tab) {
+  if (!$("tab-" + tab) || !$("tabs").querySelector(`[data-tab="${tab}"]`)) tab = "overview";
+  document.querySelectorAll(".tab").forEach((t) => t.classList.add("hidden"));
+  $("tab-" + tab).classList.remove("hidden");
+  $("tabs").querySelectorAll("button").forEach((b) => b.classList.toggle("on", b.dataset.tab === tab));
+  history.replaceState(null, "", location.pathname + location.search + "#" + tab);
+}
+
+function renderOverview() {
+  const stats = [];
+  if (D.can.tests) {
+    const t = D.tests[0];
+    stats.push(`<div class="stat"><small>Last test</small><b>${t ? resultPill(t) : "–"}</b><small>${t ? fmtDate(t.collected_at) : "none in " + D.days + " days"}</small></div>`);
+    const neg = D.tests.filter((x) => x.result === "negative" || (x.result === "positive" && x.prescribed_explained)).length;
+    stats.push(`<div class="stat"><small>Tests, last ${D.days} days</small><b>${neg} of ${D.tests.length}</b><small>clear</small></div>`);
+  }
+  if (D.can.health) {
+    const last7 = D.health.slice(-7);
+    stats.push(`<div class="stat"><small>Sleep, 7-night avg</small><b>${hm(avg(last7, "total_sleep_min"))}</b></div>`);
+    stats.push(`<div class="stat"><small>Sleep score, 7-night avg</small><b>${avg(last7, "sleep_score") ?? "–"}</b></div>`);
+    stats.push(`<div class="stat"><small>Readiness, 7-day avg</small><b>${avg(last7, "readiness_score") ?? "–"}</b></div>`);
+  }
+  if (D.can.payments) {
+    const p = D.payments.find((x) => x.status === "paid");
+    stats.push(`<div class="stat"><small>Last payment</small><b>${p ? money(p.amount_cents) : "–"}</b><small>${p ? fmtDate(p.occurred_at) : ""}</small></div>`);
+  }
+  let html = `<div class="stats">${stats.join("")}</div>`;
+  if (D.can.health) html += `<div class="card"><h2>Sleep, last ${D.days} nights</h2><div class="chart">${sleepChart(D.health)}</div>${ouraBox()}</div>`;
+  if (D.role === "family") {
+    const parts = ["tests", "health", "payments"].filter((k) => D.can[k]).map((k) => ({ tests: "test results", health: "sleep and health data", payments: "payments" }[k]));
+    html += `<p class="small">${esc(D.resident.name)} has shared ${parts.join(", ")} with you. Please don't pass this information on without their permission.</p>`;
+  }
+  $("tab-overview").innerHTML = html;
+  wireOura();
+}
+
+function ouraBox() {
+  const o = D.oura;
+  if (D.role !== "self") {
+    return o ? `<p class="small">Oura ring connected${o.last_synced_at ? ", last synced " + fmtDateTime(o.last_synced_at) : ""}.</p>` : `<p class="small">Oura ring not connected yet.</p>`;
+  }
+  if (o && !o.needs_reconnect) return `<p class="small">Oura ring connected${o.last_synced_at ? ", last synced " + fmtDateTime(o.last_synced_at) : ""}. <a href="#" data-oura>Reconnect</a></p>`;
+  return `<div class="notice">${o ? "Your Oura connection needs to be renewed." : "Connect the Oura ring the house gave you to see your sleep here."} <button data-oura style="margin-left:8px;padding:6px 12px">Connect Oura</button></div>`;
+}
+function wireOura() {
+  document.querySelectorAll("[data-oura]").forEach((b) => b.onclick = async (e) => {
+    e.preventDefault();
+    try { const { url } = await fnCall("oura-connect", { resident_id: D.resident.id }); location.href = url; }
+    catch (err) { alert(err.message); }
+  });
+}
+
+function renderTests() {
+  const rows = D.tests.map((t) => `<tr><td>${fmtDateTime(t.collected_at)}</td><td>${METHOD[t.method] || esc(t.method)}${t.panel ? `<br><span class="small">${esc(t.panel)}</span>` : ""}</td>
+    <td>${resultPill(t)}${t.substances?.length ? `<br><span class="small">${t.substances.map(esc).join(", ")}</span>` : ""}</td>
+    <td class="small">${[t.observed && "Observed", t.lab_confirmed && "Lab confirmed"].filter(Boolean).join(" · ")}${t.note ? `<br>${esc(t.note)}` : ""}</td></tr>`).join("");
+  $("tab-tests").innerHTML = `<div class="card scroll"><h2>Test results, last ${D.days} days</h2>
+    ${rows ? `<table><thead><tr><th>Collected</th><th>Type</th><th>Result</th><th>Notes</th></tr></thead><tbody>${rows}</tbody></table>` : `<p class="small">No tests recorded in this period.</p>`}
+    <p class="small" style="margin-top:12px">"Prescribed medication" means the test detected a medication the resident is prescribed and has disclosed to the house. A single cup result can be wrong; positive results can be confirmed by a lab.</p></div>${rangePicker()}`;
+  wireRange();
+}
+
+function renderSleep() {
+  const rows = [...D.health].reverse().map((d) => `<tr><td>${fmtDate(d.day)}</td><td>${hm(d.total_sleep_min)}</td><td>${d.sleep_score ?? "–"}</td><td>${d.readiness_score ?? "–"}</td>
+    <td>${d.bedtime_start ? new Date(d.bedtime_start).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" }) : "–"}</td>
+    <td>${hm(d.deep_sleep_min)} / ${hm(d.rem_sleep_min)}</td><td>${d.lowest_hr ?? "–"}</td><td>${d.avg_hrv ?? "–"}</td><td>${d.steps?.toLocaleString() ?? "–"}</td></tr>`).join("");
+  $("tab-sleep").innerHTML = `<div class="card"><h2>Hours of sleep</h2><div class="chart">${sleepChart(D.health)}</div>${ouraBox()}</div>
+    <div class="card scroll"><h2>Night by night</h2>${rows ? `<table><thead><tr><th>Night ending</th><th>Slept</th><th>Sleep score</th><th>Readiness</th><th>Bedtime</th><th>Deep / REM</th><th>Lowest HR</th><th>HRV</th><th>Steps</th></tr></thead><tbody>${rows}</tbody></table>` : `<p class="small">No data yet.</p>`}
+    <p class="small" style="margin-top:12px">From the resident's Oura ring. Wellness data, not a medical measurement.</p></div>${rangePicker()}`;
+  wireOura(); wireRange();
+}
+
+function renderPayments() {
+  const KIND = { intake_fee: "Intake fee", rent: "Rent", addon: "Add-on", refund: "Refund", other: "Other" };
+  const rows = D.payments.map((p) => `<tr><td>${fmtDate(p.occurred_at)}</td><td>${KIND[p.kind] || esc(p.kind)}</td><td>${p.period_start ? fmtDate(p.period_start) + " – " + fmtDate(p.period_end) : ""}</td><td>${money(p.amount_cents)}</td><td>${esc(p.status)}</td></tr>`).join("");
+  $("tab-payments").innerHTML = `<div class="card scroll"><div class="toolbar" style="justify-content:space-between"><h2 style="margin:0">Payments</h2>
+    ${D.has_billing ? `<button id="billing">Update card or bank, see receipts</button>` : ""}</div>
+    ${rows ? `<table style="margin-top:12px"><thead><tr><th>Date</th><th>For</th><th>Period</th><th>Amount</th><th>Status</th></tr></thead><tbody>${rows}</tbody></table>` : `<p class="small">No payments yet.</p>`}</div>`;
+  if ($("billing")) $("billing").onclick = async () => {
+    try { const { url } = await fnCall("billing-portal", { resident_id: D.resident.id }); location.href = url; } catch (e) { alert(e.message); }
+  };
+}
+
+function renderSharing() {
+  const self = D.role === "self";
+  const today = new Date(), def = new Date(today.getTime() + 90 * 864e5).toISOString().slice(0, 10), max = new Date(today.getTime() + 365 * 864e5).toISOString().slice(0, 10);
+  const active = D.family_access.filter((f) => !f.revoked_at && f.expires_on >= today.toISOString().slice(0, 10));
+  const what = (f) => [f.share_tests && "Tests", f.share_health && "Sleep and health", f.share_payments && "Payments"].filter(Boolean).join(", ");
+  const list = active.map((f) => `<tr><td><b>${esc(f.full_name)}</b><br><span class="small">${esc(f.relationship)} · ${esc(f.email)}</span></td><td>${what(f)}</td><td>${fmtDate(f.expires_on)}</td><td><button class="ghost" data-revoke="${f.id}">Stop sharing</button></td></tr>`).join("");
+  const views = (D.recent_views || []).map((v) => `<li>${esc(v.email || "staff")} (${esc(v.role)}), ${fmtDateTime(v.at)}</li>`).join("");
+  $("tab-sharing").innerHTML = `
+    <div class="card scroll"><h2>Who can see your information</h2>
+      ${list ? `<table><thead><tr><th>Person</th><th>Can see</th><th>Until</th><th></th></tr></thead><tbody>${list}</tbody></table>` : `<p class="small">Nobody outside the house staff. Staff always see test results so they can run the house.</p>`}
+    </div>
+    ${self ? `<div class="card"><h2>Share with a family member or supporter</h2>
+      <p class="small">They sign in at ${esc(location.host)}/login with this email address. You choose what they see and for how long, and you can stop at any time. Your housing does not depend on sharing.</p>
+      <div class="row"><div><label for="f-name">Their name</label><input id="f-name"></div><div><label for="f-rel">Relationship</label><input id="f-rel" placeholder="Mother, spouse, sponsor…"></div></div>
+      <div class="row"><div><label for="f-email">Their email</label><input id="f-email" type="email"></div><div><label for="f-exp">Share until</label><input id="f-exp" type="date" value="${def}" min="${today.toISOString().slice(0, 10)}" max="${max}"></div></div>
+      <label>What they can see</label>
+      <label class="check"><input type="checkbox" id="f-tests"> Drug and alcohol test results</label>
+      <label class="check"><input type="checkbox" id="f-health"> Sleep and health data from my Oura ring</label>
+      <label class="check"><input type="checkbox" id="f-pay"> Rent and payments, and updating the card on file</label>
+      <label class="check" style="margin-top:14px"><input type="checkbox" id="f-ok"> I authorize the house to make the information I've ticked available to this person, for the purpose of keeping them informed about my recovery, until the date above or until I revoke it here.</label>
+      <p><button id="f-go">Share</button></p><div class="err" id="f-err"></div></div>` : ""}
+    <div class="card"><h2>Recent views by others</h2>${views ? `<ul class="small">${views}</ul>` : `<p class="small">No one else has viewed this yet.</p>`}</div>`;
+  document.querySelectorAll("[data-revoke]").forEach((b) => b.onclick = async () => {
+    if (!confirm("Stop sharing with this person? They lose access right away.")) return;
+    const { error } = await sb.rpc("revoke_family_access", { p_id: b.dataset.revoke });
+    if (error) alert(error.message); else load(D.resident.id).then(() => show("sharing"));
+  });
+  if ($("f-go")) $("f-go").onclick = async () => {
+    $("f-err").textContent = "";
+    if (!$("f-ok").checked) { $("f-err").textContent = "Tick the authorization box to continue."; return; }
+    const { error } = await sb.rpc("grant_family_access", {
+      p_resident: D.resident.id, p_email: $("f-email").value, p_full_name: $("f-name").value, p_relationship: $("f-rel").value,
+      p_tests: $("f-tests").checked, p_health: $("f-health").checked, p_payments: $("f-pay").checked, p_expires_on: $("f-exp").value,
+    });
+    if (error) { $("f-err").textContent = error.message; return; }
+    await load(D.resident.id); show("sharing");
+    $("flash").innerHTML = `<div class="notice ok">Shared. Let them know to sign in at ${esc(location.host)}/login with that email.</div>`;
+  };
+}
+
+function rangePicker() {
+  return `<p class="small">Showing <select id="range" style="width:auto;display:inline-block;padding:4px 8px">${[30, 90, 180, 365].map((n) => `<option value="${n}" ${n === days ? "selected" : ""}>last ${n} days</option>`).join("")}</select></p>`;
+}
+function wireRange() {
+  document.querySelectorAll("#range").forEach((s) => s.onchange = async () => { const tab = location.hash.slice(1); days = +s.value; await load(D.resident.id); show(tab); });
+}
+
+init();
+</script>
+</body>
+</html>

@@ -1,0 +1,77 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Sign in</title>
+<link rel="stylesheet" href="style.css">
+<link rel="stylesheet" href="site.css">
+<script src="config.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+</head>
+<body>
+<nav class="nav"><div class="in"><a class="brand" href="/" data-house>Petaluma House</a><a class="btn sm ghost hidden" id="signout" href="#">Sign out</a></div></nav>
+<div class="wrap" style="max-width:460px">
+  <div id="form" class="card hidden">
+    <h1 style="font-size:26px">Sign in</h1>
+    <p class="small">For residents, family members a resident has shared with, and house staff. We'll email you a one-time sign-in link; there's no password.</p>
+    <label for="email">Email</label>
+    <input id="email" type="email" autocomplete="email">
+    <p><button id="send">Email me a sign-in link</button></p>
+    <div class="small" id="msg"></div>
+  </div>
+
+  <div id="choose" class="card hidden">
+    <h1 style="font-size:26px">Where to?</h1>
+    <p class="small" id="who"></p>
+    <div id="choices" style="display:grid;gap:10px;margin-top:12px"></div>
+  </div>
+
+  <div id="none" class="card hidden">
+    <h1 style="font-size:26px">Nothing to show yet</h1>
+    <p>You're signed in as <b id="none-email"></b>, but no resident or shared access is linked to that email.</p>
+    <p class="small">Family members: the resident has to share with you from their portal using this exact email address. Residents: ask the house to check the email on your file.</p>
+  </div>
+</div>
+<script src="app.js"></script>
+<script>
+document.querySelectorAll("[data-house]").forEach((el) => { if (cfg.HOUSE_NAME) el.textContent = cfg.HOUSE_NAME; });
+const next = new URLSearchParams(location.search).get("next");
+
+async function route() {
+  const { data: { session } } = await sb.auth.getSession();
+  if (!session) { $("form").classList.remove("hidden"); return; }
+  $("signout").classList.remove("hidden"); wireSignOut();
+  const { data: me, error } = await sb.rpc("portal_me");
+  if (error) { $("form").classList.remove("hidden"); $("msg").textContent = error.message; return; }
+  if (next && next.startsWith("/") && !next.startsWith("//")) { location.replace(next); return; }
+  const links = [];
+  if (me.is_operator) {
+    links.push(["/operator", "Intake and payments", "Inquiries, admissions, beds and rent"]);
+    links.push(["/residents", "Residents", "Drug tests, Oura status and family access"]);
+  }
+  for (const p of me.people) {
+    links.push([`/portal?r=${p.id}`, p.role === "self" ? "My portal" : `${p.name}'s portal`, p.role === "self" ? "Your tests, sleep, payments and sharing" : "Shared with you"]);
+  }
+  if (!links.length) { $("none-email").textContent = me.email || session.user.email; $("none").classList.remove("hidden"); return; }
+  if (links.length === 1) { location.replace(links[0][0]); return; }
+  $("who").textContent = "Signed in as " + (me.email || session.user.email);
+  $("choices").innerHTML = links.map(([href, t, d]) => `<a class="card" style="margin:0;text-decoration:none;color:inherit;padding:16px" href="${href}"><b>${esc(t)}</b><br><span class="small">${esc(d)}</span></a>`).join("");
+  $("choose").classList.remove("hidden");
+}
+
+$("send").onclick = async () => {
+  const email = $("email").value.trim();
+  if (!email) return;
+  $("send").disabled = true;
+  const redirect = location.origin + "/login" + (next ? "?next=" + encodeURIComponent(next) : "");
+  const { error } = await sb.auth.signInWithOtp({ email, options: { emailRedirectTo: redirect, shouldCreateUser: true } });
+  $("send").disabled = false;
+  $("msg").textContent = error ? error.message : "Check your inbox for a sign-in link. You can close this tab.";
+};
+$("email").addEventListener("keydown", (e) => { if (e.key === "Enter") $("send").click(); });
+sb.auth.onAuthStateChange((ev) => { if (ev === "SIGNED_IN" && !$("form").classList.contains("hidden")) { ["form", "choose", "none"].forEach((i) => $(i).classList.add("hidden")); route(); } });
+route();
+</script>
+</body>
+</html>

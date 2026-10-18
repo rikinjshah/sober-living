@@ -1,0 +1,61 @@
+/* Public site and portal. Loaded after web/style.css and reuses its tokens. */
+
+.nav { position: sticky; top: 0; z-index: 10; background: color-mix(in srgb, var(--bg) 92%, transparent);
+  backdrop-filter: blur(8px); border-bottom: 1px solid var(--line); }
+.nav .in { max-width: 1120px; margin: 0 auto; padding: 12px 16px; display: flex; align-items: center; gap: 20px; }
+.brand { font-family: Georgia, "Times New Roman", serif; font-size: 20px; color: var(--ink); text-decoration: none; margin-right: auto; }
+.nav a.link { color: var(--muted); text-decoration: none; font-size: 15px; }
+.nav a.link:hover { color: var(--ink); }
+@media (max-width: 760px) { .nav a.link.opt { display: none; } }
+a.btn { display: inline-block; font-weight: 600; padding: 11px 18px; border-radius: 8px; background: var(--accent);
+  color: var(--accent-ink); text-decoration: none; }
+a.btn.ghost { background: transparent; color: var(--ink); border: 1px solid var(--line); }
+a.btn.sm { padding: 7px 14px; font-size: 14px; }
+
+.page { max-width: 1120px; margin: 0 auto; padding: 0 16px; }
+.hero { padding: 88px 0 72px; max-width: 760px; }
+.hero h1 { font-size: clamp(36px, 6vw, 56px); line-height: 1.08; margin-bottom: 20px; }
+.hero p { font-size: 19px; color: var(--muted); margin: 0 0 28px; max-width: 620px; }
+.hero .ctas { display: flex; gap: 12px; flex-wrap: wrap; }
+.eyebrow { text-transform: uppercase; letter-spacing: .08em; font-size: 12px; font-weight: 600; color: var(--accent); margin-bottom: 10px; }
+
+section.band { padding: 64px 0; border-top: 1px solid var(--line); }
+section.band h2 { font-family: Georgia, "Times New Roman", serif; font-weight: 500; font-size: 30px; margin: 0 0 12px; }
+section.band > .page > p.sub { color: var(--muted); max-width: 640px; margin: 0 0 32px; font-size: 17px; }
+.cols { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; }
+.cols.two { grid-template-columns: 1fr 1fr; }
+@media (max-width: 860px) { .cols, .cols.two { grid-template-columns: 1fr; } }
+.feature h3 { font-size: 17px; margin: 0 0 6px; }
+.feature p { margin: 0; color: var(--muted); font-size: 15px; }
+.split { display: grid; grid-template-columns: 1fr 1fr; gap: 48px; align-items: start; }
+@media (max-width: 860px) { .split { grid-template-columns: 1fr; gap: 24px; } }
+ul.ticks { list-style: none; padding: 0; margin: 0; }
+ul.ticks li { padding: 8px 0 8px 28px; position: relative; border-bottom: 1px solid var(--line); }
+ul.ticks li::before { content: ""; position: absolute; left: 4px; top: 16px; width: 10px; height: 6px;
+  border-left: 2px solid var(--accent); border-bottom: 2px solid var(--accent); transform: rotate(-45deg); }
+.mock { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 20px; box-shadow: 0 8px 30px rgb(0 0 0 / .06); }
+.mock .stat { min-width: 0; flex: 1; }
+details { border-bottom: 1px solid var(--line); padding: 14px 0; }
+details summary { cursor: pointer; font-weight: 600; }
+details p { color: var(--muted); margin: 8px 0 0; }
+footer.site { border-top: 1px solid var(--line); padding: 32px 0 48px; color: var(--muted); font-size: 14px; }
+footer.site .page { display: flex; gap: 24px; flex-wrap: wrap; justify-content: space-between; }
+footer.site a { color: var(--muted); }
+
+/* Portal */
+.tabs { display: flex; gap: 4px; border-bottom: 1px solid var(--line); margin: 8px 0 20px; overflow-x: auto; }
+.tabs button { background: none; color: var(--muted); border-radius: 0; padding: 10px 14px; border-bottom: 2px solid transparent; white-space: nowrap; }
+.tabs button.on { color: var(--ink); border-bottom-color: var(--accent); }
+.res { display: inline-block; border-radius: 999px; padding: 1px 10px; font-size: 12px; font-weight: 600; }
+.res.negative { background: color-mix(in srgb, var(--accent) 16%, transparent); color: var(--accent); }
+.res.positive, .res.refused { background: color-mix(in srgb, var(--err) 14%, transparent); color: var(--err); }
+.res.dilute, .res.invalid, .res.pending, .res.prescribed { background: var(--warn-bg); color: var(--warn); }
+.notice { background: var(--warn-bg); color: var(--warn); border-radius: 8px; padding: 10px 14px; font-size: 14px; margin-bottom: 16px; }
+.notice.ok { background: color-mix(in srgb, var(--accent) 14%, transparent); color: var(--accent); }
+.chart svg { width: 100%; height: auto; display: block; }
+.chart .bar { fill: var(--accent); opacity: .85; }
+.chart .bar.low { fill: var(--warn); }
+.chart text { fill: var(--muted); font-size: 11px; }
+.chart line { stroke: var(--line); }
+.scroll { overflow-x: auto; }
+.stats .stat small { color: var(--muted); font-size: 12px; }

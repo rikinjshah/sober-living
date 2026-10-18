@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Privacy</title>
+<link rel="stylesheet" href="style.css">
+<link rel="stylesheet" href="site.css">
+<script src="config.js"></script>
+</head>
+<body>
+<nav class="nav"><div class="in"><a class="brand" href="/" data-house>Petaluma House</a><a class="link" href="/login">Sign in</a><a class="btn sm" href="/apply">Inquire</a></div></nav>
+<!-- DRAFT for legal review before real resident data is collected. -->
+<div class="wrap">
+  <h1>Privacy</h1>
+  <p class="small">Draft, last updated October 2026.</p>
+
+  <div class="card">
+    <h2>What we collect</h2>
+    <p>From inquiries: contact details, the prospective resident's situation and treatment setting, and how you heard about us. From residents: drug and alcohol test results recorded by house staff; sleep, readiness and activity data from the Oura ring we provide, if the resident connects it; and rent and payment records. Card and bank details are held by our payment processor, Stripe, not by us.</p>
+  </div>
+
+  <div class="card">
+    <h2>Who sees it</h2>
+    <p>House staff see what they need to run the house. Residents see everything we hold about them in their portal.</p>
+    <p>Family members or anyone else see a resident's information only when the resident gives written consent in the portal. The resident chooses which parts are shared (test results, health data, payments), with whom and until when, and can revoke it at any time. Residents can see who has viewed their information.</p>
+    <p>We do not sell personal information, use it for advertising, or share it with referral sources. We disclose information without consent only where the law requires it, such as a court order or a medical emergency.</p>
+  </div>
+
+  <div class="card">
+    <h2>Oura data</h2>
+    <p>Residents connect their own ring and can disconnect it at any time from their Oura account. We store a daily summary (sleep duration and stages, sleep and readiness scores, resting heart rate, heart rate variability, steps). It is wellness data, not a medical record, and we don't use it to make housing decisions.</p>
+  </div>
+
+  <div class="card">
+    <h2>Keeping it safe and how long we keep it</h2>
+    <p>Data is encrypted in transit and at rest, access is limited by role, and every portal view is logged. We keep resident records for the period the law requires after move-out and then delete them. If a breach affects your information, we will notify you as the law requires.</p>
+  </div>
+
+  <div class="card">
+    <h2>Your choices</h2>
+    <p>You can ask to see, correct or delete your information, or ask what we've shared and with whom. Contact the house operator.</p>
+  </div>
+</div>
+<script>const cfg = window.APP_CONFIG || {}; document.querySelectorAll("[data-house]").forEach((el) => { if (cfg.HOUSE_NAME) el.textContent = cfg.HOUSE_NAME; });</script>
+</body>
+</html>

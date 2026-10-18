@@ -1,0 +1,135 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Residents</title>
+<link rel="stylesheet" href="style.css">
+<link rel="stylesheet" href="site.css">
+<script src="config.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+</head>
+<body>
+<nav class="nav"><div class="in">
+  <a class="brand" href="/" data-house>Petaluma House</a>
+  <a class="link" href="/operator">Intake and payments</a>
+  <a class="link" href="/residents"><b>Residents</b></a>
+  <button class="ghost" id="signout" style="padding:7px 14px">Sign out</button>
+</div></nav>
+
+<div class="wrap wide">
+  <div id="denied" class="card hidden">Staff only. <a href="/login">Sign in</a> with an operator account.</div>
+  <div id="app" class="hidden">
+    <div class="toolbar" style="justify-content:space-between"><h1 style="margin:0">Residents</h1>
+      <label class="check small" style="margin:0"><input type="checkbox" id="show-past"> Show past residents</label></div>
+    <div class="grid2" style="margin-top:16px">
+      <div class="card scroll"><table><thead><tr><th>Resident</th><th>Portal email</th><th>Last test</th><th>Oura</th></tr></thead><tbody id="list"></tbody></table>
+        <p class="small" style="margin-top:12px">Residents are added automatically when an inquiry is admitted. <a href="#" id="add-toggle">Add one by hand</a></p>
+        <div id="add" class="hidden">
+          <div class="row"><div><label for="a-name">Full name</label><input id="a-name"></div><div><label for="a-email">Email</label><input id="a-email" type="email"></div></div>
+          <div class="row"><div><label for="a-move">Move-in date</label><input id="a-move" type="date"></div><div></div></div>
+          <p><button id="a-go">Add resident</button></p><div class="err" id="a-err"></div>
+        </div>
+      </div>
+      <div id="detail" class="card"><p class="small">Pick a resident to record a test or see their details.</p></div>
+    </div>
+  </div>
+</div>
+
+<script src="app.js"></script>
+<script>
+document.querySelectorAll("[data-house]").forEach((el) => { if (cfg.HOUSE_NAME) el.textContent = cfg.HOUSE_NAME; });
+wireSignOut();
+let residents = [], oura = {}, lastTest = {}, houseId = null, current = null;
+
+async function init() {
+  if (!await requireSession()) return;
+  const { data: ok } = await sb.rpc("is_operator");
+  if (!ok) { $("denied").classList.remove("hidden"); return; }
+  $("app").classList.remove("hidden");
+  await refresh();
+}
+
+async function refresh() {
+  const past = $("show-past").checked;
+  let q = sb.from("residents").select("*").order("active", { ascending: false }).order("full_name");
+  if (!past) q = q.eq("active", true);
+  const [r, o, t, h] = await Promise.all([q, sb.rpc("oura_status"),
+    sb.from("drug_tests").select("resident_id, collected_at, result, prescribed_explained").order("collected_at", { ascending: false }).limit(500),
+    sb.from("houses").select("id").limit(1)]);
+  residents = r.data || []; houseId = h.data?.[0]?.id;
+  oura = Object.fromEntries((o.data || []).map((x) => [x.resident_id, x]));
+  lastTest = {}; for (const x of t.data || []) lastTest[x.resident_id] ??= x;
+  $("list").innerHTML = residents.map((p) => {
+    const lt = lastTest[p.id], oc = oura[p.id];
+    return `<tr class="clickable" data-id="${p.id}"><td><b>${esc(p.full_name)}</b>${p.active ? "" : ' <span class="pill">past</span>'}<br><span class="small">${p.move_in_date ? "in " + fmtDate(p.move_in_date) : ""}</span></td>
+      <td class="small">${p.email ? esc(p.email) : '<span class="flag">needs email</span>'}</td>
+      <td>${lt ? resultPill(lt) + `<br><span class="small">${fmtDate(lt.collected_at)}</span>` : '<span class="small">none</span>'}</td>
+      <td class="small">${oc ? (oc.last_error ? '<span class="flag">reconnect</span>' : "synced " + fmtDateTime(oc.last_synced_at)) : "not connected"}</td></tr>`;
+  }).join("") || `<tr><td colspan="4" class="small">No residents yet.</td></tr>`;
+  $("list").querySelectorAll("tr[data-id]").forEach((tr) => tr.onclick = () => openResident(tr.dataset.id));
+  if (current) openResident(current);
+}
+
+async function openResident(id) {
+  current = id;
+  const p = residents.find((x) => x.id === id); if (!p) return;
+  const [t, f] = await Promise.all([
+    sb.from("drug_tests").select("*").eq("resident_id", id).order("collected_at", { ascending: false }).limit(50),
+    sb.from("family_access").select("*").eq("resident_id", id).order("granted_at", { ascending: false }),
+  ]);
+  const now = new Date(Date.now() - new Date().getTimezoneOffset() * 60e3).toISOString().slice(0, 16);
+  const fam = (f.data || []).map((g) => `<li>${esc(g.full_name)} (${esc(g.relationship)}, ${esc(g.email)}): ${[g.share_tests && "tests", g.share_health && "sleep", g.share_payments && "payments"].filter(Boolean).join(", ")}
+    · ${g.revoked_at ? "ended " + fmtDate(g.revoked_at) : "until " + fmtDate(g.expires_on)}</li>`).join("");
+  $("detail").innerHTML = `
+    <div class="toolbar" style="justify-content:space-between"><h2 style="margin:0">${esc(p.full_name)}</h2><a class="btn sm ghost" href="/portal?r=${p.id}">Open their portal</a></div>
+    <label for="d-email">Portal sign-in email</label>
+    <div class="toolbar"><input id="d-email" type="email" value="${esc(p.email || "")}" style="flex:1"><button class="ghost" id="d-save">Save</button></div>
+    <h2 style="margin-top:24px">Record a test</h2>
+    <div class="row"><div><label for="t-at">Collected</label><input id="t-at" type="datetime-local" value="${now}"></div>
+      <div><label for="t-method">Type</label><select id="t-method">${Object.entries(METHOD).map(([k, v]) => `<option value="${k}">${v}</option>`).join("")}</select></div></div>
+    <div class="row"><div><label for="t-panel">Panel <span class="hint">(optional)</span></label><input id="t-panel" placeholder="12-panel, EtG…"></div>
+      <div><label for="t-result">Result</label><select id="t-result">${["negative", "positive", "dilute", "invalid", "refused", "pending"].map((r) => `<option>${r}</option>`).join("")}</select></div></div>
+    <div id="pos" class="hidden"><label for="t-subs">Detected <span class="hint">(comma separated)</span></label><input id="t-subs">
+      <label class="check"><input type="checkbox" id="t-rx"> Matches a prescription the resident has disclosed (for example MAT)</label></div>
+    <label class="check"><input type="checkbox" id="t-obs"> Observed collection</label>
+    <label class="check"><input type="checkbox" id="t-lab"> Lab confirmed</label>
+    <label for="t-note">Note <span class="hint">(the resident, and family they share tests with, can see this)</span></label><input id="t-note">
+    <p><button id="t-go">Save result</button></p><div class="err" id="t-err"></div>
+    <h2 style="margin-top:24px">Recent tests</h2>
+    <table><tbody>${(t.data || []).map((x) => `<tr><td>${fmtDateTime(x.collected_at)}</td><td>${METHOD[x.method]}</td><td>${resultPill(x)}</td><td class="small">${esc(x.note || "")}</td></tr>`).join("") || '<tr><td class="small">None yet.</td></tr>'}</tbody></table>
+    <p class="small">Changing a saved result keeps the old version in the history.</p>
+    <h2 style="margin-top:24px">Family access</h2>${fam ? `<ul class="small">${fam}</ul>` : '<p class="small">The resident hasn\'t shared with anyone.</p>'}
+    <p class="small">Only the resident can share. Staff can see and end it from the resident's portal view.</p>`;
+  $("t-result").onchange = () => $("pos").classList.toggle("hidden", $("t-result").value !== "positive");
+  $("d-save").onclick = async () => {
+    const email = $("d-email").value.trim().toLowerCase() || null;
+    const { error } = await sb.from("residents").update({ email }).eq("id", id);
+    if (error) alert(error.message); else refresh();
+  };
+  $("t-go").onclick = async () => {
+    $("t-err").textContent = "";
+    const result = $("t-result").value;
+    const { error } = await sb.from("drug_tests").insert({
+      resident_id: id, collected_at: new Date($("t-at").value).toISOString(), method: $("t-method").value,
+      panel: $("t-panel").value || null, result,
+      substances: result === "positive" ? $("t-subs").value.split(",").map((s) => s.trim()).filter(Boolean) : [],
+      prescribed_explained: result === "positive" && $("t-rx").checked,
+      observed: $("t-obs").checked, lab_confirmed: $("t-lab").checked, note: $("t-note").value || null,
+    });
+    if (error) $("t-err").textContent = error.message; else refresh();
+  };
+}
+
+$("show-past").onchange = refresh;
+$("add-toggle").onclick = (e) => { e.preventDefault(); $("add").classList.toggle("hidden"); };
+$("a-go").onclick = async () => {
+  $("a-err").textContent = "";
+  const { error } = await sb.from("residents").insert({ house_id: houseId, full_name: $("a-name").value.trim(),
+    email: $("a-email").value.trim().toLowerCase() || null, move_in_date: $("a-move").value || null });
+  if (error) $("a-err").textContent = error.message; else { $("add").classList.add("hidden"); refresh(); }
+};
+init();
+</script>
+</body>
+</html>
